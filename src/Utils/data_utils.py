@@ -35,7 +35,7 @@ class NMTDataset(Dataset):
         self.texts_in_length = []
         self.texts_out = []
 
-        for i in tqdm(len(texts), desc="Tokenization...."):
+        for i in tqdm(range(len(texts)), desc="Tokenization...."):
             text_in_ids = tokenizer_in.encode(texts[i][0]).ids
             texts_out_ids = tokenizer_out.encode(texts[i][1]).ids
 
