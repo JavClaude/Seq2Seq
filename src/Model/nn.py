@@ -2,7 +2,7 @@ import torch
 import random
 from torch.nn.utils.rnn import pad_packed_sequence
 
-device = "cuda" if torch.cuda.is_avaible() else "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 class Encoder(torch.nn.Module):
