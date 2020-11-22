@@ -1,1 +1,1 @@
-## Pytorch Seq2Seq model for NMT (Eng -> Fra)
+## Pytorch Seq2Seq model for NMT
