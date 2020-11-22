@@ -26,7 +26,7 @@ class Encoder(torch.nn.Module):
 
         self.Embedding = torch.nn.Embedding(vocab_size, embedding_dim)
         self.LN = torch.nn.LayerNorm(embedding_dim)
-        self.Lstm = torch.nn.LSTM(embedding_dim, hidden_units, n_layers, batch_first=True, dropout=dropout_rnn)
+        self.Lstm = torch.nn.LSTM(embedding_dim, hidden_units, num_layers=n_layers, batch_first=True, dropout=dropout_rnn, bidirectional=bidirectional)
     
     def forward(self, sequences, sequences_length):
         sequences = self.Embedding(sequences)
@@ -61,7 +61,7 @@ class Decoder(torch.nn.Module):
 
         self.Embedding = torch.nn.Embedding(vocab_size, embedding_dim)
         self.LN = torch.nn.LayerNorm(embedding_dim)
-        self.Lstm = torch.nn.LSTM(embedding_dim, hidden_units, n_layers, batch_first=True, dropout=dropout_rnn, bidirectional=bidirectional)
+        self.Lstm = torch.nn.LSTM(embedding_dim, hidden_units, num_layers=n_layers, batch_first=True, dropout=dropout_rnn, bidirectional=bidirectional)
 
         if res_co:
             if embedding_dim != self.total_hiddens:
@@ -85,9 +85,9 @@ class Decoder(torch.nn.Module):
 
         if self.res_co:
             if self.do_lin_proj:
-                hidden_tokens = torch.add(self.Res_co(tokens), hidden_tokens.squeeze())
+                hidden_tokens = torch.add(self.Res_co(tokens.squeeze()), hidden_tokens.squeeze())
             else:
-                hidden_tokens = torch.add(tokens, hidden_tokens.squeeze())
+                hidden_tokens = torch.add(tokens.squeeze(), hidden_tokens.squeeze())
 
         hidden_tokens = self.Linear(hidden_tokens)
         hidden_tokens = self.Dropout(hidden_tokens)
@@ -112,7 +112,7 @@ class AutoEncoder(torch.nn.Module):
         assert self.encoder.total_hiddens == self.decoder.total_hiddens, "Encoder and Decoder must have the same number of hidden units"
         assert self.encoder.n_directions == self.decoder.n_directions, "Encoder and Decoder must have the same number of direction"
 
-    def forward(self, inputs_sequence, inputs_length, targets_sequence, teacher_forcing_ratio: float):
+    def forward(self, inputs_sequence, inputs_length, targets_sequence, teacher_forcing_ratio: float = 0.4):
 
         batch_size = inputs_sequence.size(0)
         max_sequence_length = inputs_sequence.size(1)
@@ -134,6 +134,7 @@ class AutoEncoder(torch.nn.Module):
 
         for i in range(1, max_sequence_length):
             decoder_tokens, hiddens = self.decoder(inputs, hiddens)
+
             preds[:, i, :] = decoder_tokens
 
             teacher_force = random.random() < teacher_forcing_ratio
@@ -141,8 +142,8 @@ class AutoEncoder(torch.nn.Module):
             if teacher_force:
                 inputs = targets_sequence[:, i].view(batch_size, -1)
             else:
-                inputs = decoder_tokens.argmax(1)
-        
+                inputs = decoder_tokens.argmax(1).unsqueeze(1)
+
         return preds
 
 
