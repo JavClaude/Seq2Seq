@@ -1,4 +1,5 @@
 import torch
+import random
 from torch.nn.utils.rnn import pad_packed_sequence
 
 device = "cuda" if torch.cuda.is_avaible() else "cpu"
@@ -38,6 +39,7 @@ class Encoder(torch.nn.Module):
 class Decoder(torch.nn.Module):
     def __init__(self,
                 vocab_size: int,
+                pad_token: int,
                 embedding_dim: int,
                 hidden_units: int,
                 n_layers: int,
@@ -47,6 +49,9 @@ class Decoder(torch.nn.Module):
                 dropout_rnn: float,
                 **kwargs):
         super(Decoder, self).__init__()
+
+        self.pad_token = pad_token
+        self.vocab_size = vocab_size
 
         self.res_co = res_co
         self.hidden_units = hidden_units
@@ -94,18 +99,51 @@ class AutoEncoder(torch.nn.Module):
     def __init__(self,
                 Encoder: Encoder,
                 Decoder: Decoder,
+                add_noise: bool,
                 **kwargs):
         super(AutoEncoder, self).__init__()
 
         self.encoder = Encoder
         self.decoder = Decoder
 
+        self.add_noise = add_noise
+
         # Do assert
         assert self.encoder.total_hiddens == self.decoder.total_hiddens, "Encoder and Decoder must have the same number of hidden units"
         assert self.encoder.n_directions == self.decoder.n_directions, "Encoder and Decoder must have the same number of direction"
 
-    def forward(self, inputs_sequence, inputs_length, targets_sequence):
-        pass
+    def forward(self, inputs_sequence, inputs_length, targets_sequence, teacher_forcing_ratio: float):
+
+        batch_size = inputs_sequence.size(0)
+        max_sequence_length = inputs_sequence.size(1)
+
+        preds = torch.zeros(
+            size=(batch_size, max_sequence_length, self.decoder.vocab_size),
+            dtype=torch.float,
+            device=device
+        )
+
+        _, hiddens = self.encoder(inputs_sequence, inputs_length)
+
+        if self.add_noise:
+            hiddens = tuple(
+                torch.add(torch.randn(h.size(), device=device), h) for h in hiddens
+            )
+        
+        inputs = targets_sequence[:, 0].view(batch_size, -1)
+
+        for i in range(1, max_sequence_length):
+            decoder_tokens, hiddens = self.decoder(inputs, hiddens)
+            preds[:, i, :] = decoder_tokens
+
+            teacher_force = random.random() < teacher_forcing_ratio
+
+            if teacher_force:
+                inputs = targets_sequence[:, i].view(batch_size, -1)
+            else:
+                inputs = decoder_tokens.argmax(1)
+        
+        return preds
 
 
 
